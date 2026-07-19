@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Sparkles, Plus, Check, Clock, FileText, Send, Wallet, X, ChevronRight, Building2, User, Calendar, Home } from "lucide-react";
+import { supabase } from "./supabaseClient";
 
 // ---------- Constants ----------
 const STATUS_FLOW = ["Demande", "Réponse à la demande par WhatsApp", "État des lieux", "Facturation", "Envoi facture PDF par WhatsApp", "Payé"];
@@ -52,21 +53,50 @@ function formatDate(iso) {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-// ---------- Storage helpers (localStorage — persistance locale au navigateur) ----------
+// ---------- Storage helpers (Supabase — base de données partagée) ----------
 async function loadQuotes() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
+  const { data, error } = await supabase
+    .from("quotes")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("Erreur de chargement", error);
     return [];
   }
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    address: row.address,
+    surface: row.surface,
+    date: row.date,
+    notes: row.notes,
+    status: row.status,
+    estimate: row.estimate,
+    discount: row.discount || 0,
+    service: row.service,
+    createdAt: row.created_at,
+  }));
 }
 
 async function saveQuotes(quotes) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(quotes));
-  } catch (e) {
-    console.error("Erreur de sauvegarde", e);
+  const rows = quotes.map((q) => ({
+    id: q.id,
+    name: q.name,
+    phone: q.phone,
+    address: q.address,
+    surface: q.surface,
+    date: q.date,
+    notes: q.notes,
+    status: q.status,
+    estimate: q.estimate,
+    discount: q.discount || 0,
+    service: q.service,
+    created_at: q.createdAt,
+  }));
+  const { error } = await supabase.from("quotes").upsert(rows, { onConflict: "id" });
+  if (error) {
+    console.error("Erreur de sauvegarde", error);
   }
 }
 
