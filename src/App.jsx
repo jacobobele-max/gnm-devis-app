@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Sparkles, Plus, Check, Clock, FileText, Send, Wallet, X, ChevronRight, Building2, User, Calendar, Home } from "lucide-react";
+import { Sparkles, Plus, Check, Clock, FileText, Send, Wallet, X, ChevronRight, ChevronLeft, Building2, User, Calendar, Home } from "lucide-react";
+import { supabase } from "./supabaseClient";
 
 // ---------- Constants ----------
 const STATUS_FLOW = ["Demande", "Réponse à la demande par WhatsApp", "État des lieux", "Facturation", "Envoi facture PDF par WhatsApp", "Payé"];
@@ -12,42 +13,37 @@ const STATUS_COLOR = {
   "Payé": "#2E7D5B",
 };
 
+// Construit un numéro au format international pour wa.me (Gabon = 241)
+function toWhatsAppNumber(raw) {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("241")) return digits;
+  if (digits.startsWith("0")) return "241" + digits.slice(1);
+  return "241" + digits;
+}
+
+function buildWhatsAppLink(phone, message) {
+  const number = toWhatsAppNumber(phone);
+  if (!number) return null;
+  const base = `https://wa.me/${number}`;
+  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
+}
+
 // Tarif standard GN&M — moyenne des prix de la Mercuriale Unitaire (11 prestations au m²)
 const RATE_RECOMMENDED = 3570;
 const RATE_FLOOR = 1051;
 
 const SERVICES = [
-  // Nettoyage professionnel et entretien des locaux
-  { id: "bureaux_standard", label: "Entretien courant bureaux / commerces", category: "Nettoyage professionnel et entretien des locaux", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "bureaux_renforce", label: "Entretien bureaux — fréquence renforcée (2x/jour)", category: "Nettoyage professionnel et entretien des locaux", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "vitres_normal", label: "Nettoyage vitres — accès normal", category: "Nettoyage professionnel et entretien des locaux", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "vitres_hauteur", label: "Nettoyage vitres — en hauteur / nacelle", category: "Nettoyage professionnel et entretien des locaux", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "decapage", label: "Décapage et lustrage sols durs", category: "Nettoyage professionnel et entretien des locaux", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "moquette", label: "Shampooing moquette / textile", category: "Nettoyage professionnel et entretien des locaux", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "fin_chantier", label: "Nettoyage fin de chantier", category: "Nettoyage professionnel et entretien des locaux", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-
-  // Facility Management
-  { id: "facility_management", label: "Facility Management — gestion technique de site", category: "Facility Management", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-
-  // Désinfection, dératisation et désinsectisation
-  { id: "desinfection", label: "Désinfection de locaux (COVID / sanitaire)", category: "Désinfection, dératisation et désinsectisation", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "deratisation", label: "Dératisation", category: "Désinfection, dératisation et désinsectisation", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "desinsectisation", label: "Désinsectisation", category: "Désinfection, dératisation et désinsectisation", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-
-  // Gestion et entretien des espaces verts
-  { id: "espaces_verts", label: "Entretien espaces verts", category: "Gestion et entretien des espaces verts", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-
-  // Maintenance et multiservices
-  { id: "maintenance_multiservices", label: "Maintenance multiservices (technique, plomberie, électricité)", category: "Maintenance et multiservices", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-
-  // Logistique et services de support
-  { id: "logistique_support", label: "Logistique et services de support", category: "Logistique et services de support", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-
-  // Gestion environnementale et hygiène
-  { id: "gestion_environnementale", label: "Gestion environnementale et hygiène", category: "Gestion environnementale et hygiène", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-
-  // Nettoyage industriel et spécialisé
-  { id: "industriel", label: "Entretien sites industriels / entrepôts", category: "Nettoyage industriel et spécialisé", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "bureaux_standard", label: "Entretien courant bureaux / commerces", category: "Nettoyage courant tertiaire", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "bureaux_renforce", label: "Entretien bureaux — fréquence renforcée (2x/jour)", category: "Nettoyage courant tertiaire", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "industriel", label: "Entretien sites industriels / entrepôts", category: "Nettoyage industriel", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "vitres_normal", label: "Nettoyage vitres — accès normal", category: "Vitrerie", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "vitres_hauteur", label: "Nettoyage vitres — en hauteur / nacelle", category: "Vitrerie", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "decapage", label: "Décapage et lustrage sols durs", category: "Remise en état", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "moquette", label: "Shampooing moquette / textile", category: "Remise en état", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "fin_chantier", label: "Nettoyage fin de chantier", category: "Remise en état", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "desinfection", label: "Désinfection de locaux (COVID / sanitaire)", category: "Hygiène & désinfection", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "espaces_verts", label: "Entretien espaces verts", category: "Espaces extérieurs", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
 ];
 
 // Code d'accès à l'espace Gérant — à modifier selon vos besoins
@@ -73,21 +69,50 @@ function formatDate(iso) {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-// ---------- Storage helpers (localStorage — persistance locale au navigateur) ----------
+// ---------- Storage helpers (Supabase — base de données partagée) ----------
 async function loadQuotes() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
+  const { data, error } = await supabase
+    .from("quotes")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("Erreur de chargement", error);
     return [];
   }
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    address: row.address,
+    surface: row.surface,
+    date: row.date,
+    notes: row.notes,
+    status: row.status,
+    estimate: row.estimate,
+    discount: row.discount || 0,
+    service: row.service,
+    createdAt: row.created_at,
+  }));
 }
 
 async function saveQuotes(quotes) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(quotes));
-  } catch (e) {
-    console.error("Erreur de sauvegarde", e);
+  const rows = quotes.map((q) => ({
+    id: q.id,
+    name: q.name,
+    phone: q.phone,
+    address: q.address,
+    surface: q.surface,
+    date: q.date,
+    notes: q.notes,
+    status: q.status,
+    estimate: q.estimate,
+    discount: q.discount || 0,
+    service: q.service,
+    created_at: q.createdAt,
+  }));
+  const { error } = await supabase.from("quotes").upsert(rows, { onConflict: "id" });
+  if (error) {
+    console.error("Erreur de sauvegarde", error);
   }
 }
 
@@ -406,6 +431,7 @@ function ManagerDashboard({ quotes, setQuotes }) {
   if (selected) {
     const idx = STATUS_FLOW.indexOf(selected.status);
     const nextStatus = STATUS_FLOW[idx + 1];
+    const prevStatus = idx > 0 ? STATUS_FLOW[idx - 1] : null;
     const packDef = SERVICES.find((s) => s.id === selected.service?.id);
     return (
       <div style={styles.card}>
@@ -438,7 +464,33 @@ function ManagerDashboard({ quotes, setQuotes }) {
         </div>
 
         <div style={styles.detailGrid}>
-          <DetailItem label="Téléphone" value={selected.phone} />
+          <div>
+            <span style={styles.detailLabel}>Téléphone</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <p style={{ fontSize: 14.5, color: "#2B2D2D", margin: 0, fontWeight: 500 }}>{selected.phone}</p>
+              {toWhatsAppNumber(selected.phone) && (
+                <a
+                  href={buildWhatsAppLink(selected.phone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Contacter sur WhatsApp"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: "#25D366",
+                    color: "#fff",
+                    textDecoration: "none",
+                  }}
+                >
+                  <Send size={12} />
+                </a>
+              )}
+            </div>
+          </div>
           <DetailItem label="Prestation" value={selected.service.label} />
           <div>
             <span style={styles.detailLabel}>Surface (m²)</span>
@@ -523,9 +575,59 @@ function ManagerDashboard({ quotes, setQuotes }) {
           </span>
         </div>
 
+        {toWhatsAppNumber(selected.phone) && (
+          <a
+            href={buildWhatsAppLink(
+              selected.phone,
+              `Bonjour ${selected.name}, voici votre devis GN&M pour ${selected.service.label} (${selected.address}) : ${formatFCFA(computeNetAmount(selected))}${selected.surface ? ` pour ${selected.surface} m²` : ""}. Merci de nous confirmer votre accord.`
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              marginTop: 10,
+              padding: "12px 0",
+              borderRadius: 10,
+              background: "#25D366",
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: 14,
+              textDecoration: "none",
+            }}
+          >
+            <Send size={16} /> Envoyer le devis sur WhatsApp
+          </a>
+        )}
+
         {nextStatus && (
           <button onClick={() => updateStatus(selected.id, nextStatus)} style={styles.primaryButton}>
             Passer à « {nextStatus} » <ChevronRight size={16} />
+          </button>
+        )}
+        {prevStatus && (
+          <button
+            onClick={() => updateStatus(selected.id, prevStatus)}
+            style={{
+              width: "100%",
+              marginTop: 10,
+              padding: "11px 18px",
+              borderRadius: 10,
+              border: "1px solid #D8D3C7",
+              background: "transparent",
+              color: "#5A5648",
+              fontSize: 13.5,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+          >
+            <ChevronLeft size={15} /> Revenir à « {prevStatus} »
           </button>
         )}
         {selected.status === "Payé" && (
