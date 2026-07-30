@@ -33,17 +33,79 @@ function buildWhatsAppLink(phone, message) {
 const RATE_RECOMMENDED = 3570;
 const RATE_FLOOR = 1051;
 
+// Les 8 domaines d'intervention officiels GN&M, dans cet ordre d'affichage
+const DOMAINES = [
+  "Nettoyage professionnel et entretien des locaux",
+  "Facility Management",
+  "Désinfection, dératisation et désinsectisation",
+  "Gestion et entretien des espaces verts",
+  "Maintenance et multiservices",
+  "Logistique et services de support",
+  "Gestion environnementale et hygiène",
+  "Nettoyage industriel et spécialisé",
+];
+
 const SERVICES = [
-  { id: "bureaux_standard", label: "Entretien courant bureaux / commerces", category: "Nettoyage courant tertiaire", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "bureaux_renforce", label: "Entretien bureaux — fréquence renforcée (2x/jour)", category: "Nettoyage courant tertiaire", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "industriel", label: "Entretien sites industriels / entrepôts", category: "Nettoyage industriel", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "vitres_normal", label: "Nettoyage vitres — accès normal", category: "Vitrerie", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "vitres_hauteur", label: "Nettoyage vitres — en hauteur / nacelle", category: "Vitrerie", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "decapage", label: "Décapage et lustrage sols durs", category: "Remise en état", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "moquette", label: "Shampooing moquette / textile", category: "Remise en état", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "fin_chantier", label: "Nettoyage fin de chantier", category: "Remise en état", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "desinfection", label: "Désinfection de locaux (COVID / sanitaire)", category: "Hygiène & désinfection", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
-  { id: "espaces_verts", label: "Entretien espaces verts", category: "Espaces extérieurs", rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  // 1. Nettoyage professionnel et entretien des locaux
+  { id: "bureaux_standard", label: "Entretien courant bureaux / commerces", domaine: DOMAINES[0], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "bureaux_renforce", label: "Entretien bureaux — fréquence renforcée (2x/jour)", domaine: DOMAINES[0], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "vitres_normal", label: "Nettoyage vitres — accès normal", domaine: DOMAINES[0], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "vitres_hauteur", label: "Nettoyage vitres — en hauteur / nacelle", domaine: DOMAINES[0], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+
+  // 2. Facility Management
+  { id: "facility_management", label: "Coordination Facility Management (site complet)", domaine: DOMAINES[1], onDevis: true, rate: 0, floorRate: 0 },
+
+  // 3. Désinfection, dératisation et désinsectisation
+  { id: "desinfection", label: "Désinfection de locaux (COVID / sanitaire)", domaine: DOMAINES[2], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "deratisation_desinsectisation", label: "Dératisation et désinsectisation", domaine: DOMAINES[2], onDevis: true, rate: 0, floorRate: 0 },
+
+  // 4. Gestion et entretien des espaces verts
+  { id: "espaces_verts", label: "Entretien espaces verts", domaine: DOMAINES[3], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+
+  // 5. Maintenance et multiservices
+  { id: "decapage", label: "Décapage et lustrage sols durs", domaine: DOMAINES[4], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "moquette", label: "Shampooing moquette / textile", domaine: DOMAINES[4], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+  { id: "fin_chantier", label: "Nettoyage fin de chantier", domaine: DOMAINES[4], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+
+  // 6. Logistique et services de support
+  { id: "logistique_support", label: "Manutention, approvisionnement, appui opérationnel", domaine: DOMAINES[5], onDevis: true, rate: 0, floorRate: 0 },
+
+  // 7. Gestion environnementale et hygiène
+  { id: "gestion_dechets", label: "Gestion des déchets et conformité HSE", domaine: DOMAINES[6], onDevis: true, rate: 0, floorRate: 0 },
+
+  // 8. Nettoyage industriel et spécialisé
+  { id: "industriel", label: "Entretien sites industriels / entrepôts", domaine: DOMAINES[7], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+];
+
+// Forfaits résidentiels — Particuliers (abonnement mensuel, prix fixe, pas de calcul au m²)
+const PARTICULIER_SERVICES = [
+  {
+    id: "particulier_essentielle",
+    label: "Formule Essentielle",
+    category: "Particuliers — Abonnement mensuel",
+    description: "Ménage hebdomadaire, entretien courant du foyer.",
+    rate: 30000,
+    floorRate: 30000,
+    type: "particulier",
+  },
+  {
+    id: "particulier_confort",
+    label: "Formule Confort",
+    category: "Particuliers — Abonnement mensuel",
+    description: "Ménage hebdomadaire + lavage 1x/semaine.",
+    rate: 52000,
+    floorRate: 52000,
+    type: "particulier",
+  },
+  {
+    id: "particulier_premium",
+    label: "Formule Premium",
+    category: "Particuliers — Abonnement mensuel",
+    description: "Ménage hebdomadaire + lavage-repassage 2x/semaine.",
+    rate: 85000,
+    floorRate: 85000,
+    type: "particulier",
+  },
 ];
 
 // Code d'accès à l'espace Gérant — à modifier selon vos besoins
@@ -167,6 +229,7 @@ function StatusTimeline({ status }) {
 
 // ---------- Client Request Form ----------
 function ClientRequestForm({ onSubmit }) {
+  const [clientType, setClientType] = useState("Professionnel");
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -180,8 +243,16 @@ function ClientRequestForm({ onSubmit }) {
   const [error, setError] = useState("");
   const [serviceMenuOpen, setServiceMenuOpen] = useState(false);
 
-  const service = SERVICES.find((s) => s.id === form.serviceId);
-  const estimate = form.surface ? Number(form.surface) * service.rate : 0;
+  const serviceList = clientType === "Particulier" ? PARTICULIER_SERVICES : SERVICES;
+  const service = serviceList.find((s) => s.id === form.serviceId) || serviceList[0];
+  const estimate = service.type === "particulier" ? service.rate : (form.surface ? Number(form.surface) * service.rate : 0);
+
+  const handleClientTypeChange = (type) => {
+    setClientType(type);
+    const list = type === "Particulier" ? PARTICULIER_SERVICES : SERVICES;
+    setForm({ ...form, serviceId: list[0].id });
+    setServiceMenuOpen(false);
+  };
 
   const handleSubmit = () => {
     if (!form.name || !form.phone || !form.address || !form.date) {
@@ -203,12 +274,14 @@ function ClientRequestForm({ onSubmit }) {
           Demande envoyée
         </h2>
         <p style={{ color: "#5C5850", fontSize: 15, maxWidth: 340, lineHeight: 1.5 }}>
-          Nous avons bien reçu votre demande pour <strong>{form.address}</strong>. Notre équipe vous enverra un devis détaillé sous 24h au {form.phone}.
+          {clientType === "Particulier"
+            ? <>Votre demande pour la <strong>{service.label}</strong> ({formatFCFA(service.rate)}/mois) a bien été reçue. Notre équipe vous contactera au {form.phone} pour convenir d'un premier passage.</>
+            : <>Nous avons bien reçu votre demande pour <strong>{form.address}</strong>. Notre équipe vous enverra un devis détaillé sous 24h au {form.phone}.</>}
         </p>
         <button
           onClick={() => {
             setSubmitted(false);
-            setForm({ name: "", phone: "", address: "", serviceId: SERVICES[0].id, surface: "", date: "", notes: "" });
+            setForm({ name: "", phone: "", address: "", serviceId: serviceList[0].id, surface: "", date: "", notes: "" });
           }}
           style={styles.ghostButton}
         >
@@ -227,6 +300,30 @@ function ClientRequestForm({ onSubmit }) {
         <p style={{ color: "#8A8579", fontSize: 14, marginTop: 6 }}>
           Décrivez votre besoin, recevez une estimation immédiate.
         </p>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 22, padding: 4, background: "#F2F1EC", borderRadius: 10 }}>
+        {["Professionnel", "Particulier"].map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => handleClientTypeChange(type)}
+            style={{
+              flex: 1,
+              padding: "10px 0",
+              borderRadius: 8,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: 700,
+              background: clientType === type ? "#0F3D3E" : "transparent",
+              color: clientType === type ? "#F7F5F0" : "#5C5850",
+              transition: "all 0.15s ease",
+            }}
+          >
+            {type}
+          </button>
+        ))}
       </div>
 
       <FieldRow icon={<User size={16} />} label="Nom complet">
@@ -256,56 +353,110 @@ function ClientRequestForm({ onSubmit }) {
         />
       </FieldRow>
 
-      <FieldRow icon={<Building2 size={16} />} label="Type de prestation">
-        <div style={{ position: "relative" }}>
-          <button
-            type="button"
-            onClick={() => setServiceMenuOpen((o) => !o)}
-            style={{ ...styles.input, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left" }}
-          >
-            <span>{service.label}</span>
-            <ChevronRight size={15} color="#8A8579" style={{ transform: serviceMenuOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s ease", flexShrink: 0 }} />
-          </button>
-          {serviceMenuOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: "calc(100% + 4px)",
-                left: 0,
-                right: 0,
-                background: "#fff",
-                border: "1.5px solid #E4E0D8",
-                borderRadius: 9,
-                boxShadow: "0 6px 20px rgba(15,61,62,0.14)",
-                zIndex: 30,
-                maxHeight: 260,
-                overflowY: "auto",
-              }}
-            >
-              {SERVICES.map((s) => (
-                <div
-                  key={s.id}
-                  onClick={() => {
-                    setForm({ ...form, serviceId: s.id });
-                    setServiceMenuOpen(false);
-                  }}
-                  style={{
-                    padding: "10px 12px",
-                    cursor: "pointer",
-                    fontSize: 14,
-                    color: s.id === form.serviceId ? "#0F3D3E" : "#2B2D2D",
-                    fontWeight: s.id === form.serviceId ? 700 : 500,
-                    background: s.id === form.serviceId ? "#0F3D3E0d" : "transparent",
-                  }}
-                >
-                  {s.label}
+      <FieldRow icon={<Building2 size={16} />} label={clientType === "Particulier" ? "Choisissez votre formule" : "Type de prestation"}>
+        {clientType === "Particulier" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {PARTICULIER_SERVICES.map((s) => (
+              <div
+                key={s.id}
+                onClick={() => setForm({ ...form, serviceId: s.id })}
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  border: s.id === form.serviceId ? "1.5px solid #0F3D3E" : "1.5px solid #E4E0D8",
+                  background: s.id === form.serviceId ? "#0F3D3E0d" : "#fff",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontFamily: "Fraunces, Georgia, serif", fontSize: 16, fontWeight: 600, color: "#0F3D3E" }}>{s.label}</span>
+                  <span style={{ fontFamily: "Fraunces, Georgia, serif", fontSize: 15, fontWeight: 700, color: "#0F3D3E" }}>{formatFCFA(s.rate)}<span style={{ fontSize: 11, fontWeight: 400, color: "#8A8579" }}>/mois</span></span>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <p style={{ fontSize: 12.5, color: "#8A8579", margin: "4px 0 0" }}>{s.description}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setServiceMenuOpen((o) => !o)}
+              style={{ ...styles.input, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left" }}
+            >
+              <span>{service.label}</span>
+              <ChevronRight size={15} color="#8A8579" style={{ transform: serviceMenuOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s ease", flexShrink: 0 }} />
+            </button>
+            {serviceMenuOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  right: 0,
+                  background: "#fff",
+                  border: "1.5px solid #E4E0D8",
+                  borderRadius: 9,
+                  boxShadow: "0 6px 20px rgba(15,61,62,0.14)",
+                  zIndex: 30,
+                  maxHeight: 260,
+                  overflowY: "auto",
+                }}
+              >
+                {DOMAINES.map((domaine) => {
+                  const items = SERVICES.filter((s) => s.domaine === domaine);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={domaine}>
+                      <div
+                        style={{
+                          padding: "8px 12px 4px",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.4,
+                          color: "#8A8579",
+                          background: "#FAF9F6",
+                        }}
+                      >
+                        {domaine}
+                      </div>
+                      {items.map((s) => (
+                        <div
+                          key={s.id}
+                          onClick={() => {
+                            setForm({ ...form, serviceId: s.id });
+                            setServiceMenuOpen(false);
+                          }}
+                          style={{
+                            padding: "10px 12px",
+                            cursor: "pointer",
+                            fontSize: 14,
+                            color: s.id === form.serviceId ? "#0F3D3E" : "#2B2D2D",
+                            fontWeight: s.id === form.serviceId ? 700 : 500,
+                            background: s.id === form.serviceId ? "#0F3D3E0d" : "transparent",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <span>{s.label}</span>
+                          {s.onDevis && (
+                            <span style={{ fontSize: 10.5, fontWeight: 700, color: "#8A6D1F", background: "#D4A54A22", padding: "2px 6px", borderRadius: 20, whiteSpace: "nowrap" }}>
+                              Sur devis
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         <p style={{ fontSize: 12.5, color: "#8A8579", marginTop: 6, lineHeight: 1.4 }}>
-          <span style={{ fontWeight: 600 }}>{service.category}</span>
+          <span style={{ fontWeight: 600 }}>{service.category || service.domaine}</span>
         </p>
       </FieldRow>
 
@@ -414,6 +565,14 @@ function ManagerDashboard({ quotes, setQuotes }) {
     if (selected?.id === id) setSelected({ ...selected, surface: surfaceValue, estimate });
   };
 
+  const updateEstimateManual = async (id, estimateValue) => {
+    const estimate = Number(estimateValue) || 0;
+    const updated = quotes.map((q) => (q.id === id ? { ...q, estimate } : q));
+    setQuotes(updated);
+    await saveQuotes(updated);
+    if (selected?.id === id) setSelected({ ...selected, estimate });
+  };
+
   const updateDiscount = async (id, discount) => {
     const updated = quotes.map((q) => (q.id === id ? { ...q, discount } : q));
     setQuotes(updated);
@@ -432,7 +591,9 @@ function ManagerDashboard({ quotes, setQuotes }) {
     const idx = STATUS_FLOW.indexOf(selected.status);
     const nextStatus = STATUS_FLOW[idx + 1];
     const prevStatus = idx > 0 ? STATUS_FLOW[idx - 1] : null;
-    const packDef = SERVICES.find((s) => s.id === selected.service?.id);
+    const packDef = [...SERVICES, ...PARTICULIER_SERVICES].find((s) => s.id === selected.service?.id);
+    const isParticulier = selected.service?.type === "particulier";
+    const isOnDevis = !!packDef?.onDevis;
     return (
       <div style={styles.card}>
         <button onClick={() => setSelected(null)} style={styles.backLink}>
@@ -492,16 +653,34 @@ function ManagerDashboard({ quotes, setQuotes }) {
             </div>
           </div>
           <DetailItem label="Prestation" value={selected.service.label} />
-          <div>
-            <span style={styles.detailLabel}>Surface (m²)</span>
-            <input
-              type="number"
-              style={{ ...styles.input, marginTop: 4, padding: "6px 10px", fontSize: 14.5 }}
-              value={selected.surface || ""}
-              onChange={(e) => updateSurface(selected.id, e.target.value, packDef ? packDef.rate : 0)}
-              placeholder="À renseigner"
-            />
-          </div>
+          {isParticulier ? (
+            <div>
+              <span style={styles.detailLabel}>Formule</span>
+              <p style={{ fontSize: 14.5, color: "#2B2D2D", margin: "4px 0 0", fontWeight: 500 }}>Abonnement mensuel — prix fixe</p>
+            </div>
+          ) : isOnDevis ? (
+            <div>
+              <span style={styles.detailLabel}>Montant du devis (saisie manuelle)</span>
+              <input
+                type="number"
+                style={{ ...styles.input, marginTop: 4, padding: "6px 10px", fontSize: 14.5 }}
+                value={selected.estimate || ""}
+                onChange={(e) => updateEstimateManual(selected.id, e.target.value)}
+                placeholder="Montant en FCFA"
+              />
+            </div>
+          ) : (
+            <div>
+              <span style={styles.detailLabel}>Surface (m²)</span>
+              <input
+                type="number"
+                style={{ ...styles.input, marginTop: 4, padding: "6px 10px", fontSize: 14.5 }}
+                value={selected.surface || ""}
+                onChange={(e) => updateSurface(selected.id, e.target.value, packDef ? packDef.rate : 0)}
+                placeholder="À renseigner"
+              />
+            </div>
+          )}
           <DetailItem label="Date souhaitée" value={formatDate(selected.date)} />
         </div>
 
@@ -516,7 +695,7 @@ function ManagerDashboard({ quotes, setQuotes }) {
           <div>
             <span style={{ fontSize: 13, color: "#5C5850" }}>Montant du devis</span>
             <div style={{ fontSize: 12, color: "#8A8579", marginTop: 2 }}>
-              {packDef ? `${formatFCFA(packDef.rate)}/m² × ${selected.surface || "?"} m²` : ""}
+              {isParticulier ? "Abonnement mensuel — forfait fixe" : isOnDevis ? "Tarif à définir selon le périmètre du site" : (packDef ? `${formatFCFA(packDef.rate)}/m² × ${selected.surface || "?"} m²` : "")}
             </div>
           </div>
           <span style={{ fontFamily: "Fraunces, Georgia, serif", fontSize: 24, color: "#0F3D3E", fontWeight: 600, textDecoration: selected.discount ? "line-through" : "none", opacity: selected.discount ? 0.5 : 1 }}>
@@ -571,7 +750,7 @@ function ManagerDashboard({ quotes, setQuotes }) {
             Marge de négociation (usage interne)
           </span>
           <span style={{ fontSize: 13.5, color: "#8A6D1F", fontWeight: 700 }}>
-            Plancher : {packDef && selected.surface ? formatFCFA(packDef.floorRate * Number(selected.surface)) : "n/d"}
+            {isParticulier || isOnDevis ? "Sans objet (montant fixé manuellement)" : `Plancher : ${packDef && selected.surface ? formatFCFA(packDef.floorRate * Number(selected.surface)) : "n/d"}`}
           </span>
         </div>
 
@@ -669,7 +848,7 @@ function ManagerDashboard({ quotes, setQuotes }) {
                 <div style={{ textAlign: "left" }}>
                   <div style={{ fontWeight: 600, fontSize: 15, color: "#2B2D2D" }}>{q.name}</div>
                   <div style={{ fontSize: 13, color: "#8A8579", marginTop: 2 }}>
-                    {q.service.label}{q.surface ? ` · ${q.surface} m²` : ""} · {formatDate(q.date)}
+                    {q.service.label}{q.service?.type === "particulier" ? " · Particulier" : ""}{q.surface ? ` · ${q.surface} m²` : ""} · {formatDate(q.date)}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
