@@ -43,3 +43,5 @@ Cette URL Railway est celle que tu peux envoyer par WhatsApp — elle ouvre l'ap
 npm install
 npm run dev
 ```
+
+<!-- CI/CD test 2026-08-12T17:35:38Z -->
