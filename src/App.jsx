@@ -873,32 +873,36 @@ function ManagerDashboard({ quotes, setQuotes }) {
           </>
         )}
         {prevStatus && (
-          <button
-            onClick={() => {
-              if (selected.status === "Payé" && !window.confirm(`Repasser ce dossier à « ${prevStatus} » annulera son statut « Payé ». Continuer ?`)) {
-                return;
-              }
-              updateStatus(selected.id, prevStatus);
-            }}
-            style={{
-              width: "100%",
-              marginTop: 10,
-              padding: "11px 18px",
-              borderRadius: 10,
-              border: "1px solid #D8D3C7",
-              background: "transparent",
-              color: "#5A5648",
-              fontSize: 13.5,
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
-          >
-            <ChevronLeft size={15} /> Revenir à « {prevStatus} »
-          </button>
+          <>
+            <button
+              onClick={() => updateStatus(selected.id, prevStatus)}
+              disabled={selected.status === "Payé"}
+              style={{
+                width: "100%",
+                marginTop: 10,
+                padding: "11px 18px",
+                borderRadius: 10,
+                border: "1px solid #D8D3C7",
+                background: "transparent",
+                color: "#5A5648",
+                fontSize: 13.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                ...(selected.status === "Payé" ? { opacity: 0.5, cursor: "not-allowed" } : {}),
+              }}
+            >
+              <ChevronLeft size={15} /> Revenir à « {prevStatus} »
+            </button>
+            {selected.status === "Payé" && (
+              <p style={{ ...styles.lockedNote, textAlign: "center" }}>
+                Dossier soldé — le statut « Payé » ne peut plus être annulé depuis ici.
+              </p>
+            )}
+          </>
         )}
         {idx >= invoiceStageIdx && (
           <div style={{ ...styles.confirmBox, padding: "20px 0 0", boxShadow: "none" }}>
