@@ -643,6 +643,10 @@ function ManagerDashboard({ quotes, setQuotes }) {
     const packDef = [...SERVICES, ...PARTICULIER_SERVICES].find((s) => s.id === selected.service?.id);
     const isParticulier = selected.service?.type === "particulier";
     const isOnDevis = !!packDef?.onDevis;
+    const invoiceStageIdx = STATUS_FLOW.indexOf("Envoi facture PDF par WhatsApp");
+    const financialsLocked = idx >= invoiceStageIdx;
+    const hasAmount = isParticulier || (isOnDevis ? !!selected.estimate : !!selected.surface);
+    const blockedNext = nextStatus === "Facturation" && !hasAmount;
     return (
       <div style={styles.card}>
         <button onClick={() => setSelected(null)} style={styles.backLink}>
@@ -712,22 +716,38 @@ function ManagerDashboard({ quotes, setQuotes }) {
               <span style={styles.detailLabel}>Montant du devis (saisie manuelle)</span>
               <input
                 type="number"
-                style={{ ...styles.input, marginTop: 4, padding: "6px 10px", fontSize: 14.5 }}
+                disabled={financialsLocked}
+                style={{
+                  ...styles.input,
+                  marginTop: 4,
+                  padding: "6px 10px",
+                  fontSize: 14.5,
+                  ...(financialsLocked ? styles.inputLocked : {}),
+                }}
                 value={selected.estimate || ""}
                 onChange={(e) => updateEstimateManual(selected.id, e.target.value)}
                 placeholder="Montant en FCFA"
               />
+              {financialsLocked && <p style={styles.lockedNote}>Verrouillé — facture déjà émise</p>}
             </div>
           ) : (
             <div>
               <span style={styles.detailLabel}>Surface (m²)</span>
               <input
                 type="number"
-                style={{ ...styles.input, marginTop: 4, padding: "6px 10px", fontSize: 14.5 }}
+                disabled={financialsLocked}
+                style={{
+                  ...styles.input,
+                  marginTop: 4,
+                  padding: "6px 10px",
+                  fontSize: 14.5,
+                  ...(financialsLocked ? styles.inputLocked : {}),
+                }}
                 value={selected.surface || ""}
                 onChange={(e) => updateSurface(selected.id, e.target.value, packDef ? packDef.rate : 0)}
                 placeholder="À renseigner"
               />
+              {financialsLocked && <p style={styles.lockedNote}>Verrouillé — facture déjà émise</p>}
             </div>
           )}
           <DetailItem label="Date souhaitée" value={formatDate(selected.date)} />
@@ -759,6 +779,7 @@ function ManagerDashboard({ quotes, setQuotes }) {
               <button
                 key={pct}
                 type="button"
+                disabled={financialsLocked}
                 onClick={() => updateDiscount(selected.id, pct)}
                 style={{
                   flex: 1,
@@ -769,13 +790,15 @@ function ManagerDashboard({ quotes, setQuotes }) {
                   color: (selected.discount || 0) === pct ? "#F7F5F0" : "#5C5850",
                   fontSize: 13.5,
                   fontWeight: 700,
-                  cursor: "pointer",
+                  cursor: financialsLocked ? "not-allowed" : "pointer",
+                  opacity: financialsLocked && (selected.discount || 0) !== pct ? 0.5 : 1,
                 }}
               >
                 {pct}%
               </button>
             ))}
           </div>
+          {financialsLocked && <p style={styles.lockedNote}>Verrouillé — facture déjà émise</p>}
         </div>
 
         {selected.discount > 0 && (() => {
@@ -831,13 +854,32 @@ function ManagerDashboard({ quotes, setQuotes }) {
         )}
 
         {nextStatus && (
-          <button onClick={() => updateStatus(selected.id, nextStatus)} style={styles.primaryButton}>
-            Passer à « {nextStatus} » <ChevronRight size={16} />
-          </button>
+          <>
+            <button
+              onClick={() => !blockedNext && updateStatus(selected.id, nextStatus)}
+              disabled={blockedNext}
+              style={{
+                ...styles.primaryButton,
+                ...(blockedNext ? { background: "#C4BFB4", cursor: "not-allowed" } : {}),
+              }}
+            >
+              Passer à « {nextStatus} » <ChevronRight size={16} />
+            </button>
+            {blockedNext && (
+              <p style={{ ...styles.lockedNote, textAlign: "center", color: "#C0392B" }}>
+                {isOnDevis ? "Renseignez le montant du devis avant de passer en facturation." : "Renseignez la surface avant de passer en facturation."}
+              </p>
+            )}
+          </>
         )}
         {prevStatus && (
           <button
-            onClick={() => updateStatus(selected.id, prevStatus)}
+            onClick={() => {
+              if (selected.status === "Payé" && !window.confirm(`Repasser ce dossier à « ${prevStatus} » annulera son statut « Payé ». Continuer ?`)) {
+                return;
+              }
+              updateStatus(selected.id, prevStatus);
+            }}
             style={{
               width: "100%",
               marginTop: 10,
@@ -858,9 +900,11 @@ function ManagerDashboard({ quotes, setQuotes }) {
             <ChevronLeft size={15} /> Revenir à « {prevStatus} »
           </button>
         )}
-        {selected.status === "Payé" && (
+        {idx >= invoiceStageIdx && (
           <div style={{ ...styles.confirmBox, padding: "20px 0 0", boxShadow: "none" }}>
-            <p style={{ color: "#2E7D5B", fontWeight: 600, fontSize: 14, marginBottom: 10 }}>✓ Dossier soldé</p>
+            <p style={{ color: selected.status === "Payé" ? "#2E7D5B" : "#8A6D1F", fontWeight: 600, fontSize: 14, marginBottom: 10 }}>
+              {selected.status === "Payé" ? "✓ Dossier soldé" : "Facture prête à générer et envoyer au client"}
+            </p>
             <button
               onClick={() => setShowInvoice(true)}
               style={{
@@ -1299,6 +1343,16 @@ const styles = {
     fontSize: 14.5,
     color: "#2B2D2D",
     background: "#FBFAF7",
+  },
+  inputLocked: {
+    background: "#F0EEE8",
+    color: "#8A8579",
+    cursor: "not-allowed",
+  },
+  lockedNote: {
+    fontSize: 11.5,
+    color: "#8A8579",
+    marginTop: 4,
   },
   primaryButton: {
     width: "100%",
