@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Sparkles, Plus, Check, Clock, FileText, Send, Wallet, X, ChevronRight, ChevronLeft, Building2, User, Calendar, Home } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { Sparkles, Plus, Check, Clock, FileText, Send, Wallet, X, ChevronRight, ChevronLeft, Building2, User, Calendar, Home, Search } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 // ---------- Constants ----------
@@ -551,6 +551,9 @@ function PinGate({ onSuccess }) {
 function ManagerDashboard({ quotes, setQuotes }) {
   const [selected, setSelected] = useState(null);
   const [showInvoice, setShowInvoice] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
 
   const updateStatus = async (id, newStatus) => {
     const updated = quotes.map((q) => (q.id === id ? { ...q, status: newStatus } : q));
@@ -589,6 +592,49 @@ function ManagerDashboard({ quotes, setQuotes }) {
     revenueEnCours: quotes.filter((q) => q.status !== "Payé").reduce((s, q) => s + computeNetAmount(q), 0),
     revenuePaye: quotes.filter((q) => q.status === "Payé").reduce((s, q) => s + computeNetAmount(q), 0),
   };
+
+  const clientNames = useMemo(
+    () => Array.from(new Set(quotes.map((q) => q.name).filter(Boolean))).sort((a, b) => a.localeCompare(b, "fr")),
+    [quotes]
+  );
+
+  const hasActiveFilters = search.trim() !== "" || statusFilter !== "all" || clientFilter !== "all";
+
+  const filteredQuotes = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return quotes.filter((quote) => {
+      if (statusFilter !== "all" && quote.status !== statusFilter) return false;
+      if (clientFilter !== "all" && quote.name !== clientFilter) return false;
+      if (q) {
+        const haystack = [quote.name, quote.phone, quote.address, quote.service?.label]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [quotes, search, statusFilter, clientFilter]);
+
+  const groupedByDate = useMemo(() => {
+    const groups = new Map();
+    filteredQuotes.forEach((quote) => {
+      const key = quote.date || "__none__";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(quote);
+    });
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => {
+        if (a === "__none__") return 1;
+        if (b === "__none__") return -1;
+        return a.localeCompare(b);
+      })
+      .map(([date, items]) => ({
+        key: date,
+        label: date === "__none__" ? "Date non renseignée" : formatDate(date),
+        items: items.slice().sort((x, y) => (y.createdAt || "").localeCompare(x.createdAt || "")),
+      }));
+  }, [filteredQuotes]);
 
   if (selected) {
     const idx = STATUS_FLOW.indexOf(selected.status);
@@ -865,38 +911,97 @@ function ManagerDashboard({ quotes, setQuotes }) {
           </p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {quotes
-            .slice()
-            .reverse()
-            .map((q) => (
-              <button key={q.id} onClick={() => setSelected(q)} style={styles.quoteRow}>
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontWeight: 600, fontSize: 15, color: "#2B2D2D" }}>{q.name}</div>
-                  <div style={{ fontSize: 13, color: "#8A8579", marginTop: 2 }}>
-                    {q.service.label}{q.service?.type === "particulier" ? " · Particulier" : ""}{q.surface ? ` · ${q.surface} m²` : ""} · {formatDate(q.date)}
+        <>
+          <div style={styles.filterBar}>
+            <div style={styles.searchWrap}>
+              <Search size={15} color="#8A8579" style={styles.searchIcon} />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher un nom, un téléphone, une adresse…"
+                style={styles.searchInput}
+              />
+            </div>
+            <div style={styles.filterRow}>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={styles.select}>
+                <option value="all">Tous les statuts</option>
+                {STATUS_FLOW.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={styles.select}>
+                <option value="all">Tous les clients</option>
+                {clientNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setStatusFilter("all");
+                    setClientFilter("all");
+                  }}
+                  style={styles.clearFiltersBtn}
+                >
+                  <X size={13} /> Réinitialiser
+                </button>
+              )}
+            </div>
+          </div>
+
+          {filteredQuotes.length === 0 ? (
+            <div style={styles.emptyState}>
+              <Search size={28} color="#C4BFB4" />
+              <p style={{ color: "#8A8579", fontSize: 14.5, marginTop: 10, textAlign: "center" }}>
+                Aucun devis ne correspond à ces filtres.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              {groupedByDate.map((group) => (
+                <div key={group.key}>
+                  <div style={styles.dateGroupHeader}>
+                    <Calendar size={13} />
+                    {group.label}
+                    <span style={styles.dateGroupCount}>{group.items.length}</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {group.items.map((q) => (
+                      <button key={q.id} onClick={() => setSelected(q)} style={styles.quoteRow}>
+                        <div style={{ textAlign: "left" }}>
+                          <div style={{ fontWeight: 600, fontSize: 15, color: "#2B2D2D" }}>{q.name}</div>
+                          <div style={{ fontSize: 13, color: "#8A8579", marginTop: 2 }}>
+                            {q.service.label}{q.service?.type === "particulier" ? " · Particulier" : ""}{q.surface ? ` · ${q.surface} m²` : ""}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ fontWeight: 600, fontSize: 14, color: "#0F3D3E" }}>{formatFCFA(computeNetAmount(q))}{q.discount > 0 ? ` (-${q.discount}%)` : ""}</span>
+                          <span
+                            style={{
+                              background: STATUS_COLOR[q.status] + "1a",
+                              color: STATUS_COLOR[q.status],
+                              padding: "4px 10px",
+                              borderRadius: 20,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {q.status}
+                          </span>
+                          <ChevronRight size={16} color="#C4BFB4" />
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontWeight: 600, fontSize: 14, color: "#0F3D3E" }}>{formatFCFA(computeNetAmount(q))}{q.discount > 0 ? ` (-${q.discount}%)` : ""}</span>
-                  <span
-                    style={{
-                      background: STATUS_COLOR[q.status] + "1a",
-                      color: STATUS_COLOR[q.status],
-                      padding: "4px 10px",
-                      borderRadius: 20,
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {q.status}
-                  </span>
-                  <ChevronRight size={16} color="#C4BFB4" />
-                </div>
-              </button>
-            ))}
-        </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1270,6 +1375,78 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
+  },
+  filterBar: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    marginBottom: 18,
+  },
+  searchWrap: {
+    position: "relative",
+  },
+  searchIcon: {
+    position: "absolute",
+    left: 12,
+    top: "50%",
+    transform: "translateY(-50%)",
+    pointerEvents: "none",
+  },
+  searchInput: {
+    width: "100%",
+    padding: "10px 12px 10px 34px",
+    borderRadius: 9,
+    border: "1.5px solid #E4E0D8",
+    fontSize: 14,
+    color: "#2B2D2D",
+    background: "#fff",
+  },
+  filterRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  select: {
+    flex: "1 1 140px",
+    padding: "9px 10px",
+    borderRadius: 9,
+    border: "1.5px solid #E4E0D8",
+    fontSize: 13.5,
+    color: "#2B2D2D",
+    background: "#fff",
+    cursor: "pointer",
+  },
+  clearFiltersBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    padding: "9px 12px",
+    borderRadius: 9,
+    border: "none",
+    background: "transparent",
+    color: "#8A8579",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  dateGroupHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#8A8579",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 8,
+  },
+  dateGroupCount: {
+    background: "#EAE6DC",
+    color: "#5C5850",
+    borderRadius: 20,
+    padding: "1px 7px",
+    fontSize: 11,
+    fontWeight: 700,
   },
   quoteRow: {
     display: "flex",
