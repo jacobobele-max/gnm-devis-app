@@ -1078,17 +1078,18 @@ async function notifyNewRequest(quote) {
 }
 
 export default function App() {
-  const [view, setView] = useState("client");
+  const isGerant = window.location.pathname.replace(/\/+$/, "") === "/gerant";
   const [quotes, setQuotes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isGerant);
   const [managerAuthed, setManagerAuthed] = useState(false);
 
   useEffect(() => {
+    if (!isGerant) return;
     loadQuotes().then((q) => {
       setQuotes(q);
       setLoading(false);
     });
-  }, []);
+  }, [isGerant]);
 
   const addQuote = useCallback(
     async (data) => {
@@ -1125,34 +1126,17 @@ export default function App() {
               GN&M Devis
             </div>
             <div style={{ fontSize: 10.5, color: "#8A8579", letterSpacing: 1, textTransform: "uppercase" }}>
-              Espace Devis &amp; Facturation
+              {isGerant ? "Espace Gérant" : "Espace Devis & Facturation"}
             </div>
           </div>
-        </div>
-        <div style={styles.tabSwitch}>
-          <button
-            onClick={() => setView("client")}
-            style={{ ...styles.tabButton, ...(view === "client" ? styles.tabButtonActive : {}) }}
-          >
-            Client
-          </button>
-          <button
-            onClick={() => {
-              setManagerAuthed(false);
-              setView("manager");
-            }}
-            style={{ ...styles.tabButton, ...(view === "manager" ? styles.tabButtonActive : {}) }}
-          >
-            Gérant
-          </button>
         </div>
       </header>
 
       <main style={styles.main}>
-        {loading ? (
-          <div style={{ textAlign: "center", color: "#8A8579", padding: 60 }}>Chargement…</div>
-        ) : view === "client" ? (
+        {!isGerant ? (
           <ClientRequestForm onSubmit={addQuote} />
+        ) : loading ? (
+          <div style={{ textAlign: "center", color: "#8A8579", padding: 60 }}>Chargement…</div>
         ) : managerAuthed ? (
           <ManagerDashboard quotes={quotes} setQuotes={setQuotes} />
         ) : (
@@ -1190,28 +1174,6 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-  },
-  tabSwitch: {
-    display: "flex",
-    background: "#EAE6DC",
-    borderRadius: 10,
-    padding: 3,
-  },
-  tabButton: {
-    border: "none",
-    background: "transparent",
-    padding: "7px 14px",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#8A8579",
-    borderRadius: 8,
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-  },
-  tabButtonActive: {
-    background: "#fff",
-    color: "#0F3D3E",
-    boxShadow: "0 1px 3px rgba(15,61,62,0.12)",
   },
   main: {
     width: "100%",
