@@ -77,36 +77,40 @@ const SERVICES = [
 
   // 8. Nettoyage industriel et spécialisé
   { id: "industriel", label: "Entretien sites industriels / entrepôts", domaine: DOMAINES[7], rate: RATE_RECOMMENDED, floorRate: RATE_FLOOR },
+
+  // 9. Formules professionnelles (entretien récurrent, packs — voir /formules-professionnelles)
+  { id: "essentiel_pro", label: "Formule Essentiel Pro (entretien récurrent)", domaine: DOMAINES[0], onDevis: true, rate: 0, floorRate: 0 },
+  { id: "performance", label: "Formule Performance (entretien récurrent + certificat)", domaine: DOMAINES[0], onDevis: true, rate: 0, floorRate: 0 },
 ];
 
-// Forfaits résidentiels — Particuliers (abonnement mensuel, prix fixe, pas de calcul au m²)
+// Packs résidentiels — Particuliers (interventions ponctuelles, montant saisi après audit gratuit)
 const PARTICULIER_SERVICES = [
   {
-    id: "particulier_essentielle",
-    label: "Formule Essentielle",
-    category: "Particuliers — Abonnement mensuel",
-    description: "Ménage hebdomadaire, entretien courant du foyer.",
-    rate: 30000,
-    floorRate: 30000,
-    type: "particulier",
+    id: "particulier_nouveau_depart",
+    label: "Nouveau Départ",
+    category: "Particuliers — Pack ponctuel",
+    description: "Avant emménagement, après travaux, maison longtemps fermée. Audit / état des lieux gratuit.",
+    onDevis: true,
+    rate: 0,
+    floorRate: 0,
   },
   {
-    id: "particulier_confort",
-    label: "Formule Confort",
-    category: "Particuliers — Abonnement mensuel",
-    description: "Ménage hebdomadaire + lavage 1x/semaine.",
-    rate: 52000,
-    floorRate: 52000,
-    type: "particulier",
+    id: "particulier_serenite",
+    label: "Sérénité",
+    category: "Particuliers — Pack ponctuel",
+    description: "Maison occupée, présence de nuisibles, besoin d'assainissement total. Audit gratuit, 1 grand nettoyage/3 mois.",
+    onDevis: true,
+    rate: 0,
+    floorRate: 0,
   },
   {
-    id: "particulier_premium",
-    label: "Formule Premium",
-    category: "Particuliers — Abonnement mensuel",
-    description: "Ménage hebdomadaire + lavage-repassage 2x/semaine.",
-    rate: 85000,
-    floorRate: 85000,
-    type: "particulier",
+    id: "particulier_confort_plus",
+    label: "Confort Plus",
+    category: "Particuliers — Pack ponctuel",
+    description: "Le pack premium pour un confort total. Audit gratuit, 1 grand nettoyage/3 mois.",
+    onDevis: true,
+    rate: 0,
+    floorRate: 0,
   },
 ];
 
