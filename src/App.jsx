@@ -137,6 +137,21 @@ function formatDate(iso) {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+// Un dossier est considéré "en attente" tant qu'il n'est pas payé. Faute d'un
+// horodatage par changement de statut (non stocké actuellement), on utilise
+// createdAt comme approximation : "ouvert depuis X jours sans être finalisé".
+const STALE_DAYS_THRESHOLD = 5;
+
+function daysSince(iso) {
+  if (!iso) return 0;
+  const ms = Date.now() - new Date(iso).getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
+
+function isStale(q) {
+  return q.status !== "Payé" && daysSince(q.createdAt) >= STALE_DAYS_THRESHOLD;
+}
+
 // ---------- Storage helpers (Supabase — base de données partagée) ----------
 async function loadQuotes() {
   const { data, error } = await supabase
@@ -558,6 +573,7 @@ function ManagerDashboard({ quotes, setQuotes }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  const [staleOnly, setStaleOnly] = useState(false);
 
   const updateStatus = async (id, newStatus) => {
     const updated = quotes.map((q) => (q.id === id ? { ...q, status: newStatus } : q));
@@ -602,11 +618,14 @@ function ManagerDashboard({ quotes, setQuotes }) {
     [quotes]
   );
 
-  const hasActiveFilters = search.trim() !== "" || statusFilter !== "all" || clientFilter !== "all";
+  const staleCount = useMemo(() => quotes.filter(isStale).length, [quotes]);
+
+  const hasActiveFilters = search.trim() !== "" || statusFilter !== "all" || clientFilter !== "all" || staleOnly;
 
   const filteredQuotes = useMemo(() => {
     const q = search.trim().toLowerCase();
     return quotes.filter((quote) => {
+      if (staleOnly && !isStale(quote)) return false;
       if (statusFilter !== "all" && quote.status !== statusFilter) return false;
       if (clientFilter !== "all" && quote.name !== clientFilter) return false;
       if (q) {
@@ -618,7 +637,7 @@ function ManagerDashboard({ quotes, setQuotes }) {
       }
       return true;
     });
-  }, [quotes, search, statusFilter, clientFilter]);
+  }, [quotes, search, statusFilter, clientFilter, staleOnly]);
 
   const groupedByDate = useMemo(() => {
     const groups = new Map();
@@ -995,6 +1014,7 @@ function ManagerDashboard({ quotes, setQuotes }) {
                     setSearch("");
                     setStatusFilter("all");
                     setClientFilter("all");
+                    setStaleOnly(false);
                   }}
                   style={styles.clearFiltersBtn}
                 >
@@ -1003,6 +1023,35 @@ function ManagerDashboard({ quotes, setQuotes }) {
               )}
             </div>
           </div>
+
+          {staleCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setStaleOnly((v) => !v)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                width: "100%",
+                textAlign: "left",
+                border: staleOnly ? "1.5px solid #C0392B" : "1px solid #F0C9C0",
+                background: "#FDF3F1",
+                color: "#C0392B",
+                borderRadius: 12,
+                padding: "10px 14px",
+                fontSize: 13.5,
+                fontWeight: 700,
+                cursor: "pointer",
+                marginBottom: 14,
+              }}
+            >
+              <Clock size={15} />
+              {staleCount} dossier{staleCount > 1 ? "s" : ""} en attente depuis plus de {STALE_DAYS_THRESHOLD} jours
+              <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, opacity: 0.8 }}>
+                {staleOnly ? "Voir tout" : "Afficher"}
+              </span>
+            </button>
+          )}
 
           {filteredQuotes.length === 0 ? (
             <div style={styles.emptyState}>
@@ -1021,33 +1070,45 @@ function ManagerDashboard({ quotes, setQuotes }) {
                     <span style={styles.dateGroupCount}>{group.items.length}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {group.items.map((q) => (
-                      <button key={q.id} onClick={() => setSelected(q)} style={styles.quoteRow}>
-                        <div style={{ textAlign: "left" }}>
-                          <div style={{ fontWeight: 600, fontSize: 15, color: "#2B2D2D" }}>{q.name}</div>
-                          <div style={{ fontSize: 13, color: "#8A8579", marginTop: 2 }}>
-                            {q.service.label}{q.service?.type === "particulier" ? " · Particulier" : ""}{q.surface ? ` · ${q.surface} m²` : ""}
+                    {group.items.map((q) => {
+                      const stale = isStale(q);
+                      return (
+                        <button
+                          key={q.id}
+                          onClick={() => setSelected(q)}
+                          style={stale ? { ...styles.quoteRow, ...styles.quoteRowStale } : styles.quoteRow}
+                        >
+                          <div style={{ textAlign: "left" }}>
+                            <div style={{ fontWeight: 600, fontSize: 15, color: "#2B2D2D" }}>{q.name}</div>
+                            <div style={{ fontSize: 13, color: "#8A8579", marginTop: 2 }}>
+                              {q.service.label}{q.service?.type === "particulier" ? " · Particulier" : ""}{q.surface ? ` · ${q.surface} m²` : ""}
+                            </div>
+                            {stale && (
+                              <div style={{ ...styles.staleBadge, marginTop: 4 }}>
+                                <Clock size={11} /> En attente depuis {daysSince(q.createdAt)} j
+                              </div>
+                            )}
                           </div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <span style={{ fontWeight: 600, fontSize: 14, color: "#0F3D3E" }}>{formatFCFA(computeNetAmount(q))}{q.discount > 0 ? ` (-${q.discount}%)` : ""}</span>
-                          <span
-                            style={{
-                              background: STATUS_COLOR[q.status] + "1a",
-                              color: STATUS_COLOR[q.status],
-                              padding: "4px 10px",
-                              borderRadius: 20,
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {q.status}
-                          </span>
-                          <ChevronRight size={16} color="#C4BFB4" />
-                        </div>
-                      </button>
-                    ))}
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <span style={{ fontWeight: 600, fontSize: 14, color: "#0F3D3E" }}>{formatFCFA(computeNetAmount(q))}{q.discount > 0 ? ` (-${q.discount}%)` : ""}</span>
+                            <span
+                              style={{
+                                background: STATUS_COLOR[q.status] + "1a",
+                                color: STATUS_COLOR[q.status],
+                                padding: "4px 10px",
+                                borderRadius: 20,
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {q.status}
+                            </span>
+                            <ChevronRight size={16} color="#C4BFB4" />
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -1516,12 +1577,26 @@ const styles = {
     alignItems: "center",
     background: "#fff",
     border: "none",
+    borderLeft: "3px solid transparent",
     borderRadius: 12,
     padding: "14px 16px",
     cursor: "pointer",
     boxShadow: "0 1px 3px rgba(15,61,62,0.06)",
     width: "100%",
     textAlign: "left",
+  },
+  quoteRowStale: {
+    borderLeft: "3px solid #C0392B",
+    background: "#FDF3F1",
+  },
+  staleBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 3,
+    color: "#C0392B",
+    fontSize: 11,
+    fontWeight: 700,
+    whiteSpace: "nowrap",
   },
   backLink: {
     border: "none",
